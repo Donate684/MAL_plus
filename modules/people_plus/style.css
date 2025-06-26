@@ -1,0 +1,20 @@
+﻿/* Positioning anchor for all dropdown panels */
+.role-filter-container, .staff-filter-container, .manga-filter-container {
+    position: relative;
+}
+
+/* The dropdown panel itself */
+.custom-filter-panel {
+    position: absolute !important;
+    top: 100% !important;
+    left: 0 !important;
+    z-index: 100 !important;
+    width: max-content !important;
+    padding: 6px 10px !important;
+}
+
+/* Force list items to be blocks and not wrap text */
+.custom-filter-panel .sort-order-list li {
+    display: block !important;
+    white-space: nowrap !important;
+}

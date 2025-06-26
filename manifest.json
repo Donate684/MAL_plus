@@ -1,0 +1,44 @@
+﻿{
+  "manifest_version": 3,
+  "name": "MAL+",
+  "version": "0.2",
+  "description": "MAL+ - MyAnimeList Enchancer.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://myanimelist.net/*"
+  ],
+  "background": {
+    "service_worker": "modules/staff_plus/background.js"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://myanimelist.net/people/*"],
+      "js": ["modules/people_plus/content.js"],
+      "css": ["modules/people_plus/style.css"]
+    },
+    {
+      "matches": ["https://myanimelist.net/anime/*"],
+      "js": [
+        "modules/staff_plus/dexie.js",
+        "modules/staff_plus/content.js"
+      ],
+      "css": ["modules/staff_plus/style.css"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["modules/people_plus/style.css", "modules/staff_plus/style.css"],
+      "matches": ["https://myanimelist.net/*"]
+    }
+  ]
+}

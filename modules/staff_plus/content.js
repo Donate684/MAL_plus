@@ -2,10 +2,27 @@
     if (data.staffPlusEnabled) {
         /**
          * This script injects a custom analytics block on MyAnimeList anime pages.
-         * ... (v7.7) Dynamically calculate bubble height to prevent overflow.
+         * ... (v7.8) Hides the original staff block.
          */
 
         const pathSegments = window.location.pathname.split('/').filter(Boolean);
+
+        // Listener for messages from the popup
+        chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+            if (request.action === "clearCacheAndReload") {
+                const db = new Dexie('malPlusCache');
+                console.log("MAL+ Enhancer: Received request to clear cache.");
+                db.delete().then(() => {
+                    console.log("MAL+ Enhancer: Cache cleared. Reloading page.");
+                    window.location.reload();
+                    sendResponse({success: true});
+                }).catch(error => {
+                    console.error("MAL+ Enhancer: Failed to clear cache.", error);
+                    sendResponse({success: false, error: error.message});
+                });
+                return true; // Indicates that the response is sent asynchronously
+            }
+        });
 
         if (pathSegments.length < 4 && pathSegments[0] === 'anime') {
 
@@ -90,31 +107,64 @@
             }
 
             async function createCustomBlock() {
-                const synopsisHeadingContainer = document.getElementById('synopsis')?.parentElement;
-                if (!synopsisHeadingContainer) return;
+                const staffHeadings = Array.from(document.querySelectorAll('h2'));
+                const originalStaffHeading = staffHeadings.find(h2 => h2.textContent.trim() === 'Staff');
+                if (!originalStaffHeading || !originalStaffHeading.parentElement) {
+                    console.error("MAL+ Enhancer: Could not find the original 'Staff' heading.");
+                    return;
+                }
+                const originalStaffHeadingContainer = originalStaffHeading.parentElement;
+
+                const charactersListDiv = document.querySelector('.detail-characters-list.clearfix');
+                if (!charactersListDiv) {
+                    console.error("MAL+ Enhancer: Could not find the 'Characters & Voice Actors' list.");
+                    return;
+                }
+
                 const customBlockWrapper = document.createElement('div');
                 customBlockWrapper.style.marginBottom = '20px';
-                const clonedHeadingContainer = synopsisHeadingContainer.cloneNode(true);
+                customBlockWrapper.style.marginTop = '20px';
+
+                const clonedHeadingContainer = originalStaffHeadingContainer.cloneNode(true);
                 clonedHeadingContainer.querySelector('h2').textContent = 'MyAnimeList+';
-                const clonedEditContainer = clonedHeadingContainer.querySelector('.floatRightHeader');
-                if (clonedEditContainer) {
-                    clonedEditContainer.innerHTML = '(auto generated)';
-                    clonedEditContainer.style.cssText = 'font-weight: normal; font-size: 11px; color: #888;';
-                    const clearCacheLink = document.createElement('a');
-                    clearCacheLink.href = '#';
-                    clearCacheLink.textContent = '[Clear Cache & Reload]';
-                    clearCacheLink.style.marginLeft = '10px';
-                    clearCacheLink.style.fontWeight = 'normal';
-                    clearCacheLink.onclick = async (e) => { e.preventDefault(); await db.delete(); window.location.reload(); };
-                    clonedEditContainer.appendChild(clearCacheLink);
-                }
+                clonedHeadingContainer.style.display = '';
+
                 const staffInfoContainer = document.createElement('div');
                 staffInfoContainer.innerHTML = '<p style="margin-top: 10px;">Loading creator data...</p>';
                 customBlockWrapper.appendChild(clonedHeadingContainer);
                 customBlockWrapper.appendChild(staffInfoContainer);
+
                 loadAndDisplayStaff(staffInfoContainer);
-                synopsisHeadingContainer.parentNode.insertBefore(customBlockWrapper, synopsisHeadingContainer);
+
+                charactersListDiv.insertAdjacentElement('afterend', customBlockWrapper);
+
+                // --- HIDING ORIGINAL ELEMENTS ---
+
+                const staffAnchor = document.querySelector('a[name="staff"]');
+                if (staffAnchor) {
+                    staffAnchor.style.display = 'none';
+                    if (staffAnchor.previousElementSibling && staffAnchor.previousElementSibling.tagName === 'BR') {
+                        staffAnchor.previousElementSibling.style.display = 'none';
+                    }
+                }
+                
+                originalStaffHeadingContainer.style.display = 'none';
+
+                let staffContent = originalStaffHeadingContainer.nextElementSibling;
+                if (staffContent && staffContent.classList.contains('detail-characters-list')) {
+                    staffContent.style.display = 'none';
+
+                    let br1 = staffContent.nextElementSibling;
+                    if (br1 && br1.tagName === 'BR') {
+                        br1.style.display = 'none';
+                        let br2 = br1.nextElementSibling;
+                         if (br2 && br2.tagName === 'BR') {
+                            br2.style.display = 'none';
+                        }
+                    }
+                }
             }
+
 
             function findStaffTables(doc) {
                 const staffHeading = Array.from(doc.querySelectorAll('h2')).find(h2 => h2.textContent.trim() === 'Staff');
@@ -130,10 +180,10 @@
                 }
                 return staffTables;
             }
-            
+
             function checkOverflowAndAddArrows(container) {
                 const wrappers = container.querySelectorAll('.best-works-wrapper');
-                
+
                 wrappers.forEach(wrapper => {
                     const bestWorksContainer = wrapper.querySelector('.best-works-container');
                     const listElement = bestWorksContainer ? bestWorksContainer.querySelector('ul') : null;
@@ -141,7 +191,7 @@
                     if (!bestWorksContainer || !listElement || listElement.children.length === 0) {
                         return;
                     }
-                    
+
                     const PIXEL_TOLERANCE = 2;
                     const isOverflowing = listElement.offsetHeight > bestWorksContainer.clientHeight + PIXEL_TOLERANCE;
 
@@ -201,7 +251,7 @@
                         targetContainer.innerHTML = '<p>No key creators found for the specified roles.</p>';
                         return;
                     }
-                    
+
                     const staffWithDataPromises = preliminaryStaffList.map(async (person) => {
                         const filmography = await getOrFetchPersonFilmography(person.url);
                         if (!filmography) return null;
@@ -247,7 +297,7 @@
                         targetContainer.innerHTML = '<p>No key creators found after verification.</p>';
                         return;
                     }
-                    
+
                     const staffForRendering = processedStaff.flatMap(person =>
                         person.finalRoles.map(roleInfo => ({
                             ...person,
@@ -255,7 +305,7 @@
                             bestWorks: person.bestWorksByRole[roleInfo.displayRole] || []
                         }))
                     );
-                    
+
                     staffForRendering.sort((a, b) => {
                         const aIsCreator = a.role === 'Original Creator';
                         const bIsCreator = b.role === 'Original Creator';
@@ -263,25 +313,25 @@
                         if (!aIsCreator && bIsCreator) return 1;
                         return 0;
                     });
-                    
+
                     renderStaff(staffForRendering, targetContainer);
-                    
+
                     await document.fonts.ready;
                     requestAnimationFrame(() => {
                         checkOverflowAndAddArrows(targetContainer);
                     });
-                    
+
                     if (!targetContainer.dataset.listenerAttached) {
                         targetContainer.addEventListener('click', (event) => {
                             const arrow = event.target.closest('.expand-arrow');
                             if (arrow) {
-                                const container = arrow.previousElementSibling; 
-                                
+                                const container = arrow.previousElementSibling;
+
                                 if (container && container.classList.contains('best-works-container')) {
                                     const isExpanded = container.classList.contains('expanded');
 
                                     if (isExpanded) {
-                                        container.style.maxHeight = null; 
+                                        container.style.maxHeight = null;
                                         container.classList.remove('expanded');
                                         arrow.classList.remove('expanded');
                                     } else {
@@ -298,7 +348,7 @@
                         targetContainer.dataset.listenerAttached = 'true';
                     }
 
-                } catch (error) {            
+                } catch (error) {
                     console.error('Error in loadAndDisplayStaff:', error);
                     targetContainer.innerHTML = `<p style="color: red;">Failed to load creator data: ${error.message}</p>`;
                 }
@@ -307,7 +357,7 @@
             function renderStaff(staffData, targetContainer) {
                 targetContainer.className = 'mal-plus-staff-grid';
                 const placeholderImage = 'https://cdn.myanimelist.net/images/questionmark_23.gif?s=f7dcbc4a4603d18356d3dfef8abd655c';
-                
+
                 const gridHtml = staffData.map(person => {
                     let bestWorksHtml = '';
                     if (person.bestWorks.length > 0) {
@@ -322,7 +372,7 @@
                             return `<li><a href="${work.url}" target="_blank" title="${work.title} (Score: ${work.score})">${displayTitle}</a> (<span>${work.score}</span>)</li>`;
                         }).join('') + '</ul>';
                     }
-                    
+
                     return `
                         <div class="staff-member-card">
                             <div class="staff-image"><a href="${person.url}" target="_blank"><img src="${person.thumbnailUrl || placeholderImage}" alt="${person.name}" width="42" height="62" loading="lazy"></a></div>
@@ -335,7 +385,7 @@
                             </div>
                         </div>`;
                 }).join('');
-                
+
                 targetContainer.innerHTML = gridHtml || '<p>No key creators found for the specified roles.</p>';
             }
 

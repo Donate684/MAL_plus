@@ -38,6 +38,16 @@
     font-size: 11px;
     color: #8c92a0;
 }
+.action-link {
+    font-size: 11px;
+    margin-top: 5px;
+    color: #61afef;
+    text-decoration: none;
+    font-weight: bold;
+}
+.action-link:hover {
+    text-decoration: underline;
+}
 .switch {
     position: relative;
     display: inline-block;

@@ -2,7 +2,7 @@
     if (data.staffPlusEnabled) {
         /**
          * This script injects a custom analytics block on MyAnimeList anime pages.
-         * ... (v7.8) Hides the original staff block.
+         * ... (v7.9) Fixes cache status display logic.
          */
 
         const pathSegments = window.location.pathname.split('/').filter(Boolean);
@@ -65,7 +65,19 @@
                 relevantWorks.sort((a, b) => b.score - a.score);
                 return relevantWorks;
             }
+            
+            function formatTimeAgo(timestamp) {
+                const diff = Date.now() - timestamp;
+                const seconds = Math.floor(diff / 1000);
+                const minutes = Math.floor(seconds / 60);
+                const hours = Math.floor(minutes / 60);
+                const days = Math.floor(hours / 24);
 
+                if (days > 0) return `(cached ${days} day${days > 1 ? 's' : ''} ago)`;
+                if (hours > 0) return `(cached ${hours} hour${hours > 1 ? 's' : ''} ago)`;
+                if (minutes > 0) return `(cached ${minutes} min${minutes > 1 ? 's' : ''} ago)`;
+                return `(cached ${seconds} sec${seconds > 1 ? 's' : ''} ago)`;
+            }
 
             async function getOrFetchPersonFilmography(personUrl) {
                 const personIdMatch = personUrl.match(/\/people\/(\d+)\//);
@@ -126,7 +138,11 @@
                 customBlockWrapper.style.marginTop = '20px';
 
                 const clonedHeadingContainer = originalStaffHeadingContainer.cloneNode(true);
-                clonedHeadingContainer.querySelector('h2').textContent = 'MyAnimeList+';
+                const clonedHeading = clonedHeadingContainer.querySelector('h2');
+                
+                clonedHeading.innerHTML = 'Staff+ <span class="staff-plus-cache-status" style="font-size: 11px; color: #a5a5a5; font-weight: normal; margin-left: 5px;"></span>';
+                const cacheStatusElement = clonedHeading.querySelector('.staff-plus-cache-status');
+                
                 clonedHeadingContainer.style.display = '';
 
                 const staffInfoContainer = document.createElement('div');
@@ -134,7 +150,7 @@
                 customBlockWrapper.appendChild(clonedHeadingContainer);
                 customBlockWrapper.appendChild(staffInfoContainer);
 
-                loadAndDisplayStaff(staffInfoContainer);
+                loadAndDisplayStaff(staffInfoContainer, cacheStatusElement);
 
                 charactersListDiv.insertAdjacentElement('afterend', customBlockWrapper);
 
@@ -208,15 +224,22 @@
                 });
             }
 
-            async function loadAndDisplayStaff(targetContainer) {
+            async function loadAndDisplayStaff(targetContainer, cacheStatusElement) {
                 try {
                     const animeId = window.location.pathname.split('/')[2];
                     const currentAnimeUrl = window.location.href;
                     let preliminaryStaffList;
+
                     const cachedData = await db.animeData.where('animeId').equals(animeId).first();
                     if (cachedData && (Date.now() - cachedData.timestamp < CACHE_EXPIRATION_24H)) {
                         preliminaryStaffList = cachedData.staffList;
+                        if (cacheStatusElement) {
+                            cacheStatusElement.textContent = formatTimeAgo(cachedData.timestamp);
+                        }
                     } else {
+                        if (cacheStatusElement) {
+                            cacheStatusElement.textContent = '';
+                        }
                         const staffUrl = window.location.origin + `/anime/${animeId}/_/characters`;
                         const htmlText = await fetchViaBackground(staffUrl);
                         const doc = new DOMParser().parseFromString(htmlText, 'text/html');

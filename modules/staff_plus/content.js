@@ -35,7 +35,7 @@
             });
 
             const ROLES_TO_FETCH = ['Original Creator', 'Director', 'Series Composition', 'Script', 'Music', 'Character Design'];
-            const CACHE_EXPIRATION_24H = 24 * 60 * 60 * 1000;
+            const CACHE_EXPIRATION_7D = 7 * 24 * 60 * 60 * 1000; // Изменено на 7 дней
             const LANGUAGE_BLACKLIST = ['French', 'Spanish', 'German', 'English', 'Italian', 'Korean', 'Chinese', 'Russian'];
 
 
@@ -73,10 +73,10 @@
                 const hours = Math.floor(minutes / 60);
                 const days = Math.floor(hours / 24);
 
-                if (days > 0) return `(cached ${days} day${days > 1 ? 's' : ''} ago)`;
-                if (hours > 0) return `(cached ${hours} hour${hours > 1 ? 's' : ''} ago)`;
-                if (minutes > 0) return `(cached ${minutes} min${minutes > 1 ? 's' : ''} ago)`;
-                return `(cached ${seconds} sec${seconds > 1 ? 's' : ''} ago)`;
+                if (days > 0) return `(cached ${days} day${days > 1 ? 's' : ''} ago, may be outdated)`;
+                if (hours > 0) return `(cached ${hours} hour${hours > 1 ? 's' : ''} ago, may be outdated)`;
+                if (minutes > 0) return `(cached ${minutes} min${minutes > 1 ? 's' : ''} ago, may be outdated)`;
+                return `(cached ${seconds} sec${seconds > 1 ? 's' : ''} ago, may be outdated)`;
             }
 
             async function getOrFetchPersonFilmography(personUrl) {
@@ -84,7 +84,7 @@
                 if (!personIdMatch) return null;
                 const personId = personIdMatch[1];
                 const cachedPerson = await db.personCache.where('personId').equals(personId).first();
-                if (cachedPerson && (Date.now() - cachedPerson.timestamp < CACHE_EXPIRATION_24H)) {
+                if (cachedPerson && (Date.now() - cachedPerson.timestamp < CACHE_EXPIRATION_7D)) { // Изменено
                     return cachedPerson.filmography;
                 }
                 const htmlText = await fetchViaBackground(personUrl);
@@ -140,7 +140,7 @@
                 const clonedHeadingContainer = originalStaffHeadingContainer.cloneNode(true);
                 const clonedHeading = clonedHeadingContainer.querySelector('h2');
                 
-                clonedHeading.innerHTML = 'Staff+ <span class="staff-plus-cache-status" style="font-size: 11px; color: #a5a5a5; font-weight: normal; margin-left: 5px;"></span>';
+                clonedHeading.innerHTML = 'Staff+<span class="staff-plus-cache-status" style="font-size: 10px; color: #a5a5a5; font-weight: normal; margin-left: 5px;"></span>';
                 const cacheStatusElement = clonedHeading.querySelector('.staff-plus-cache-status');
                 
                 clonedHeadingContainer.style.display = '';
@@ -231,7 +231,7 @@
                     let preliminaryStaffList;
 
                     const cachedData = await db.animeData.where('animeId').equals(animeId).first();
-                    if (cachedData && (Date.now() - cachedData.timestamp < CACHE_EXPIRATION_24H)) {
+                    if (cachedData && (Date.now() - cachedData.timestamp < CACHE_EXPIRATION_7D)) { // Изменено
                         preliminaryStaffList = cachedData.staffList;
                         if (cacheStatusElement) {
                             cacheStatusElement.textContent = formatTimeAgo(cachedData.timestamp);
